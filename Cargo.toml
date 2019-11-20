@@ -6,6 +6,7 @@ edition = "2018"
 description = "Fast xlsx to csv converter"
 repository = "https://github.com/rusnasonov/xlsx2csv"
 license = "WTFPL"
+readme = "README.md"
 
 [dependencies]
 zip = "0.5"
