@@ -4,6 +4,7 @@ Fast xlsx to csv converter.
 
 ## Install
 
+`cargo install rn-xlsx2csv`
 
 ## Usage
 
