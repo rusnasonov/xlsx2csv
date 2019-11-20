@@ -5,6 +5,7 @@ authors = ["Ruslan Nasonov <rus.nasonov@gmail.com>"]
 edition = "2018"
 description = "Fast xlsx to csv converter"
 repository = "https://github.com/rusnasonov/xlsx2csv"
+license = "WTFPL"
 
 [dependencies]
 zip = "0.5"
