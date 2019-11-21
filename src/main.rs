@@ -17,22 +17,25 @@ fn main() {
         .index(1)
     );
 
+    let app =  app.arg(
+        clap::Arg::with_name("sheet")
+        .short("s")
+        .long("sheet")
+        .takes_value(true)
+        .default_value("1")
+        .help("Sheet number")
+    );
+
     let matches = app.get_matches();
 
-    let source = match matches.value_of("source"){
-        Some(source) => {source},
-        None => {
-            println!("Path to xslx does't set");
-            std::process::exit(1);
-        }
-    };
-    
-    let csv = match from_xlsx::from_xlsx(source.to_string()) {
+    let source = matches.value_of("source").expect("Source is not set");
+    let sheet = matches.value_of("sheet").expect("Sheet is not set");
+
+    match from_xlsx::from_xlsx(source, sheet) {
         Ok(csv) => {csv},
         Err(err) => {
             println!("{:?}", err);
             std::process::exit(1);
         }
     };
-    println!("{}", csv);
 }

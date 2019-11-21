@@ -14,7 +14,7 @@
                 ]
             },
             "program": "${cargo:program}",
-            "args": ["/Users/perseus/Projects/private/xlsx2csv-rust/Исходящие.xlsx"]
+            "args": [""]
         }
     ]
 }

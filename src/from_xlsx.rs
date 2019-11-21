@@ -6,6 +6,8 @@ use zip;
 use std::fs;
 use std::io;
 use std::io::prelude::*;
+use std::fmt;
+use std::error::Error;
 
 #[derive(Debug)]
 pub enum ConvertError {
@@ -13,11 +15,37 @@ pub enum ConvertError {
     Zip(zip::result::ZipError),
     Xml(quick_xml::Error),
     Csv(csv::Error),
+    Custom(String),
 }
 
-pub fn from_xlsx(file_name: String) -> Result<String, ConvertError> {
-    let file = fs::File::open(&file_name).map_err(ConvertError::Io)?;
-    let mut archive = zip::ZipArchive::new(file).map_err(ConvertError::Zip)?;
+impl Error for ConvertError {
+    fn description(&self) -> &str {
+        match *self {
+            ConvertError::Io(ref err) => err.description(),
+            ConvertError::Zip(ref err) => err.description(),
+            ConvertError::Xml(ref err) => err.description(),
+            ConvertError::Csv(ref err) => err.description(),
+            ConvertError::Custom(ref err) => err,
+        }
+    }
+}
+
+impl fmt::Display for ConvertError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ConvertError::Io(ref err) => err.fmt(f),
+            ConvertError::Zip(ref err) => err.fmt(f),
+            ConvertError::Xml(ref err) => err.fmt(f),
+            ConvertError::Csv(ref err) => err.fmt(f),
+            ConvertError::Custom(ref err) => {
+                write!(f, "{}", err)
+            },
+        }
+    }
+}
+
+
+fn shared_strings(archive: &mut zip::ZipArchive<fs::File>) -> Result<Vec<String>, ConvertError> {
     let mut file = archive
         .by_name("xl/sharedStrings.xml")
         .map_err(ConvertError::Zip)?;
@@ -25,7 +53,7 @@ pub fn from_xlsx(file_name: String) -> Result<String, ConvertError> {
     file.read_to_string(&mut contents)
         .map_err(ConvertError::Io)?;
     let mut reader = Reader::from_str(&contents);
-    let mut shared_strings: Vec<String> = Vec::new();
+    let mut strings: Vec<String> = Vec::new();
     let mut buf = Vec::new();
     let mut is_t = false;
     loop {
@@ -33,7 +61,7 @@ pub fn from_xlsx(file_name: String) -> Result<String, ConvertError> {
             Ok(Event::Start(ref e)) => is_t = b"t" == e.name(),
             Ok(Event::Text(e)) => {
                 if is_t {
-                    shared_strings.push(e.unescape_and_decode(&reader).unwrap());
+                    strings.push(e.unescape_and_decode(&reader).unwrap());
                     is_t = false;
                 }
             }
@@ -43,12 +71,14 @@ pub fn from_xlsx(file_name: String) -> Result<String, ConvertError> {
         }
         buf.clear();
     }
-    std::mem::drop(file);
+    Ok(strings)
+}
 
+fn print_rows(archive: &mut zip::ZipArchive<fs::File>, sheet: &str, strings: &Vec<String>) -> Result<(), ConvertError> {
+    let path_to_sheet = format!("xl/worksheets/sheet{}.xml", sheet);
     let mut file = archive
-        .by_name("xl/worksheets/sheet1.xml")
-        .map_err(ConvertError::Zip)?;
-
+        .by_name(&path_to_sheet[..])
+        .map_err(|_| ConvertError::Custom("Sheet not found".to_owned()))?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .map_err(ConvertError::Io)?;
@@ -93,7 +123,7 @@ pub fn from_xlsx(file_name: String) -> Result<String, ConvertError> {
                         row.push(v);
                     } else {
                         let index: usize = value.parse().unwrap();
-                        let v = shared_strings.get(index).unwrap().clone();
+                        let v = strings.get(index).unwrap().clone();
                         row.push(v);
                     }
                     value.clear();
@@ -116,5 +146,13 @@ pub fn from_xlsx(file_name: String) -> Result<String, ConvertError> {
         };
         buf.clear();
     }
-    Ok(String::new())
+    Ok(())
+}
+
+pub fn from_xlsx(file_name: &str, sheet: &str) -> Result<(), ConvertError> {
+    let file = fs::File::open(file_name).map_err(ConvertError::Io)?;
+    let mut archive = zip::ZipArchive::new(file).map_err(ConvertError::Zip)?;
+    let strings = shared_strings(&mut archive)?;
+    print_rows(&mut archive, sheet, &strings)?;
+    Ok(())
 }
